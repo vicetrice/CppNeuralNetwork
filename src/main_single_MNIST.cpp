@@ -15,11 +15,14 @@ using namespace vicetriceNN;
 std::vector<float> centerByBoundingBox(const std::vector<float> &img)
 {
     const int size = 28;
+
     int minX = size, minY = size;
     int maxX = 0, maxY = 0;
 
     for (int y = 0; y < size; y++)
+    {
         for (int x = 0; x < size; x++)
+        {
             if (img[y * size + x] > 0.1f)
             {
                 minX = std::min(minX, x);
@@ -27,22 +30,65 @@ std::vector<float> centerByBoundingBox(const std::vector<float> &img)
                 maxX = std::max(maxX, x);
                 maxY = std::max(maxY, y);
             }
+        }
+    }
 
     if (minX >= maxX || minY >= maxY)
         return img;
 
     int boxWidth = maxX - minX + 1;
     int boxHeight = maxY - minY + 1;
+
     int offsetX = (size - boxWidth) / 2;
     int offsetY = (size - boxHeight) / 2;
 
     std::vector<float> centered(size * size, 0.0f);
+
     for (int y = 0; y < boxHeight; y++)
+    {
         for (int x = 0; x < boxWidth; x++)
+        {
             centered[(y + offsetY) * size + (x + offsetX)] =
                 img[(y + minY) * size + (x + minX)];
+        }
+    }
 
     return centered;
+}
+
+// ------------------------------------------------------------
+// Gaussian Blur 3x3
+// ------------------------------------------------------------
+std::vector<float> gaussianBlur28x28(const std::vector<float> &img)
+{
+    const int size = 28;
+    std::vector<float> out(size * size, 0.0f);
+
+    // Kernel 3x3 aproximado sigma=1
+    float kernel[3][3] = {
+        {1 / 16.0f, 2 / 16.0f, 1 / 16.0f},
+        {2 / 16.0f, 4 / 16.0f, 2 / 16.0f},
+        {1 / 16.0f, 2 / 16.0f, 1 / 16.0f}};
+
+    for (int y = 0; y < size; y++)
+    {
+        for (int x = 0; x < size; x++)
+        {
+            float sum = 0.0f;
+            for (int ky = -1; ky <= 1; ky++)
+            {
+                for (int kx = -1; kx <= 1; kx++)
+                {
+                    int nx = std::clamp(x + kx, 0, size - 1);
+                    int ny = std::clamp(y + ky, 0, size - 1);
+                    sum += img[ny * size + nx] * kernel[ky + 1][kx + 1];
+                }
+            }
+            out[y * size + x] = sum;
+        }
+    }
+
+    return out;
 }
 
 // ------------------------------------------------------------
@@ -52,6 +98,7 @@ void saveBMP28x28(const std::string &filename, const std::vector<float> &img)
 {
     const int width = 28;
     const int height = 28;
+
     std::ofstream file(filename, std::ios::binary);
 
     uint32_t fileSize = 54 + 1024 + width * height;
@@ -97,86 +144,26 @@ void saveBMP28x28(const std::string &filename, const std::vector<float> &img)
     }
 
     for (int y = height - 1; y >= 0; y--)
+    {
         for (int x = 0; x < width; x++)
         {
             uint8_t value = uint8_t(std::clamp(img[y * width + x], 0.0f, 1.0f) * 255.0f);
             file.put(value);
         }
+    }
 
     file.close();
 }
 
 // ------------------------------------------------------------
-// Rotar 90° CCW y flip horizontal (para EMNIST)
+// Cargar BMP y convertir a 28x28 normalizado con Gaussian Blur
 // ------------------------------------------------------------
-// ------------------------------------------------------------
-// Flip horizontal y rotar 90° CCW
-// ------------------------------------------------------------
-std::vector<float> rotateFlipEMNIST(const std::vector<float> &img)
-{
-    const int size = 28;
-
-    // 1️⃣ Flip horizontal (invertir columnas)
-    std::vector<float> flipped(size * size, 0.0f);
-    for (int y = 0; y < size; y++)
-    {
-        for (int x = 0; x < size; x++)
-        {
-            flipped[y * size + x] = img[y * size + (size - 1 - x)];
-        }
-    }
-
-    // 2️⃣ Rotación según variable interna
-    int rotation = 270; // Cambia a 0, 90, 180, 270
-
-    std::vector<float> rotated(size * size, 0.0f);
-
-    for (int y = 0; y < size; y++)
-    {
-        for (int x = 0; x < size; x++)
-        {
-            switch (rotation)
-            {
-            case 0: // sin rotación
-                rotated[y * size + x] = flipped[y * size + x];
-                break;
-            case 90: // 90° CW
-                rotated[x * size + (size - 1 - y)] = flipped[y * size + x];
-                break;
-            case 180: // 180°
-                rotated[(size - 1 - y) * size + (size - 1 - x)] = flipped[y * size + x];
-                break;
-            case 270: // 90° CCW
-                rotated[(size - 1 - x) * size + y] = flipped[y * size + x];
-                break;
-            default:
-                rotated[y * size + x] = flipped[y * size + x]; // fallback = sin rotación
-            }
-        }
-    }
-
-    // 1️⃣ Flip horizontal (invertir columnas)
-    std::vector<float> flipped2(size * size, 0.0f);
-    for (int y = 0; y < size; y++)
-    {
-        for (int x = 0; x < size; x++)
-        {
-            flipped2[y * size + x] = rotated[y * size + (size - 1 - x)];
-        }
-    }
-
-    return flipped2;
-}
-
-// ------------------------------------------------------------
-// Cargar BMP y convertir a 28x28 para EMNIST
-// ------------------------------------------------------------
-std::vector<float> loadBMP28x28BW_EMNIST(const std::string &filename)
+std::vector<float> loadBMP28x28BW(const std::string &filename)
 {
     std::ifstream file(filename, std::ios::binary);
     if (!file.is_open())
     {
-        std::cerr << "No se pudo abrir BMP\n";
+        std::cerr << "No se pudo abrir BMP: " << filename << "\n";
         return {};
     }
 
@@ -200,6 +187,7 @@ std::vector<float> loadBMP28x28BW_EMNIST(const std::string &filename)
     uint16_t bpp;
     file.seekg(28);
     file.read(reinterpret_cast<char *>(&bpp), 2);
+
     if (bpp != 8 && bpp != 24)
     {
         std::cerr << "Solo BMP 8 o 24 bits soportado\n";
@@ -209,6 +197,7 @@ std::vector<float> loadBMP28x28BW_EMNIST(const std::string &filename)
     file.seekg(pixelOffset);
 
     std::vector<uint8_t> data;
+
     if (bpp == 8)
     {
         data.resize(width * height);
@@ -223,100 +212,96 @@ std::vector<float> loadBMP28x28BW_EMNIST(const std::string &filename)
         for (int i = 0; i < width * height; i++)
         {
             int idx = i * 3;
-            uint8_t r = data[idx + 2], g = data[idx + 1], b = data[idx + 0];
+            uint8_t r = data[idx + 2];
+            uint8_t g = data[idx + 1];
+            uint8_t b = data[idx + 0];
             gray[i] = uint8_t(0.299f * r + 0.587f * g + 0.114f * b);
         }
         data = gray;
     }
 
+    std::vector<uint8_t> flipped(width * height);
+    for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
+            flipped[y * width + x] = data[(height - 1 - y) * width + x];
+
     // Redimensionar a 28x28
     std::vector<float> resized(28 * 28, 0.0f);
-    float scaleX = float(width) / 28.0f, scaleY = float(height) / 28.0f;
+    float scaleX = float(width) / 28.0f;
+    float scaleY = float(height) / 28.0f;
+
     for (int y = 0; y < 28; y++)
         for (int x = 0; x < 28; x++)
         {
             int srcX = std::min(int(x * scaleX), width - 1);
             int srcY = std::min(int(y * scaleY), height - 1);
-            resized[y * 28 + x] = float(data[srcY * width + srcX]) / 255.0f;
+            resized[y * 28 + x] = float(flipped[srcY * width + srcX]) / 255.0f;
         }
 
-    // Rotar 90° CCW y flip horizontal
-    auto rotated = rotateFlipEMNIST(resized);
+    // Aplicar Gaussian Blur
+    // resized = gaussianBlur28x28(resized);
 
     // Centrar
-    auto centered = centerByBoundingBox(rotated);
+    auto centered = centerByBoundingBox(resized);
 
-    // Guardar imagen de debug
-    saveBMP28x28("debug_emnist.bmp", centered);
+    // Guardar imagen centrada para depuración
+    saveBMP28x28("debug_centered.bmp", centered);
 
     return centered;
 }
 
 // ------------------------------------------------------------
-// MAIN
+// MAIN FOR MNIST
 // ------------------------------------------------------------
 int main()
 {
-    int input_size = 28 * 28;
-    int hidden1 = 256;
-    int hidden2 = 128;
-    int output_size = 47; // EMNIST Balanced
+    int input_size = 28*28;
+    int hidden1 = 128;
+    int hidden2 = 64;
+    int output_size = 10;
 
     neuralNetwork net;
     net.addLayer(input_size, hidden1);
     net.addLayer(hidden1, hidden2);
     net.addLayer(hidden2, output_size);
 
-    const std::string weights_path = "weights_EMNIST/emnist_balanced_weights.bin";
-    if (!net.loadWeights(weights_path))
+    if(!net.loadWeights("weights.bin"))
     {
         std::cerr << "No se encontraron pesos entrenados.\n";
         return 1;
     }
+
     std::cout << "Pesos cargados correctamente.\n";
 
-    net.setLearningRate(0.0001f);
-    net.setLambda(0.0f);
-
-    static const std::string emnist_labels = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabdefghnqrt";
-
-    while (true)
+    while(true)
     {
         std::cout << "\nIngrese path a BMP ('exit' para salir): ";
         std::string bmp_path;
         std::cin >> bmp_path;
-        if (bmp_path == "exit")
-            break;
+        if(bmp_path == "exit") break;
 
-        auto input_vec = loadBMP28x28BW_EMNIST(bmp_path);
-        if (input_vec.empty())
-            continue;
+        auto input_vec = loadBMP28x28BW(bmp_path);
+        if(input_vec.empty()) continue;
 
         auto output_probs = net.predict(input_vec);
 
         size_t predicted = 0;
         float max_val = output_probs[0];
-        for (size_t i = 1; i < output_probs.size(); i++)
+
+        std::cout << "\nProbabilidades:\n";
+        for(size_t i = 0; i < output_probs.size(); i++)
         {
-            if (output_probs[i] > max_val)
+            std::cout << "Digito " << i << " -> " << output_probs[i] << "\n";
+            if(output_probs[i] > max_val)
             {
                 max_val = output_probs[i];
                 predicted = i;
             }
         }
 
-        std::cout << "\nProbabilidades por caracter:\n";
-        for (size_t i = 0; i < output_probs.size(); i++)
-        {
-            char c = (i < emnist_labels.size()) ? emnist_labels[i] : '?';
-            std::cout << c << " -> " << output_probs[i] << "\n";
-        }
-
-        if (predicted < emnist_labels.size())
-            std::cout << "\nCaracter predicho: " << emnist_labels[predicted] << "\n";
-        else
-            std::cout << "\nPrediccion invalida\n";
+        std::cout << "Prediccion: " << predicted << "\n";
     }
 
     return 0;
 }
+

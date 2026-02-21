@@ -71,9 +71,6 @@ namespace vicetriceNN
                     new_delta[j] *= relu_derivative(prev_output[j]);
             }
 
-            float lambda = 0.0001f;
-
-        
             for (size_t i = 0; i < W.size(); i++)
             {
                 for (size_t j = 0; j < W[i].size(); j++)
@@ -138,7 +135,8 @@ namespace vicetriceNN
                     backward(target, layer_outputs);
                 }
             }
-            std::cout << "Epoch " << e + 1 << "/" << epochs << ", Loss: " << epoch_loss / num_samples << "\n";
+            loss = epoch_loss / num_samples;
+            std::cout << "Epoch " << e + 1 << "/" << epochs << ", Loss: " << loss << "\n";
         }
     }
 
@@ -172,6 +170,42 @@ namespace vicetriceNN
         }
 
         return float(correct) / num_samples;
+    }
+
+    void neuralNetwork::saveFullModel(const std::string &filename) const
+    {
+        std::ofstream file(filename, std::ios::binary);
+        if (!file.is_open())
+            return;
+
+        const uint32_t magic = 0x4E4E4655;
+        file.write(reinterpret_cast<const char *>(&magic), sizeof(uint32_t));
+
+        file.write(reinterpret_cast<const char *>(&learning_rate), sizeof(float));
+        file.write(reinterpret_cast<const char *>(&lambda), sizeof(float));
+        file.write(reinterpret_cast<const char *>(&loss), sizeof(float));
+
+        size_t num_layers = layers.size();
+        file.write(reinterpret_cast<const char *>(&num_layers), sizeof(size_t));
+
+        for (const auto &layer : layers)
+        {
+            const auto &W = layer.getWeights();
+            const auto &B = layer.getBiases();
+
+            size_t rows = W.size();
+            size_t cols = W[0].size();
+
+            file.write(reinterpret_cast<const char *>(&rows), sizeof(size_t));
+            file.write(reinterpret_cast<const char *>(&cols), sizeof(size_t));
+
+            for (size_t i = 0; i < rows; i++)
+                file.write(reinterpret_cast<const char *>(W[i].data()), cols * sizeof(float));
+
+            file.write(reinterpret_cast<const char *>(B.data()), B.size() * sizeof(float));
+        }
+
+        file.close();
     }
 
     void neuralNetwork::saveWeights(const std::string &filename) const
@@ -225,4 +259,58 @@ namespace vicetriceNN
         file.close();
         return true;
     }
+
+    bool neuralNetwork::loadFullModel(const std::string &filename)
+    {
+        std::ifstream file(filename, std::ios::binary);
+        if (!file.is_open())
+            return false;
+
+        uint32_t magic = 0;
+        file.read(reinterpret_cast<char *>(&magic), sizeof(uint32_t));
+
+        
+        if (magic != 0x4E4E4655)
+        {
+            file.close();
+            return loadWeights(filename); 
+        }
+
+        
+        file.read(reinterpret_cast<char *>(&learning_rate), sizeof(float));
+        file.read(reinterpret_cast<char *>(&lambda), sizeof(float));
+        file.read(reinterpret_cast<char *>(&loss), sizeof(float));
+
+        size_t num_layers = 0;
+        file.read(reinterpret_cast<char *>(&num_layers), sizeof(size_t));
+
+        if (num_layers != layers.size())
+        {
+            file.close();
+            return false;
+        }
+
+        
+        for (auto &layer : layers)
+        {
+            auto &W = layer.getWeights();
+            auto &B = layer.getBiases();
+
+            size_t rows, cols;
+            file.read(reinterpret_cast<char *>(&rows), sizeof(size_t));
+            file.read(reinterpret_cast<char *>(&cols), sizeof(size_t));
+
+            W.resize(rows, std::vector<float>(cols));
+            B.resize(rows);
+
+            for (size_t i = 0; i < rows; i++)
+                file.read(reinterpret_cast<char *>(W[i].data()), cols * sizeof(float));
+
+            file.read(reinterpret_cast<char *>(B.data()), B.size() * sizeof(float));
+        }
+
+        file.close();
+        return true;
+    }
+
 }

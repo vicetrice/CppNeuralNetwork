@@ -10,7 +10,9 @@ namespace vicetriceNN
     {
     private:
         std::vector<neuronLayer> layers;
-        float learning_rate = 0.01f;
+        float learning_rate = 0.001f;
+        float lambda = 0.0f;
+        float loss;
 
         static float cross_entropy_loss(const std::vector<float> &output, int label);
 
@@ -25,7 +27,8 @@ namespace vicetriceNN
 
         void backward(const std::vector<float> &target, const std::vector<std::vector<float>> &layer_outputs);
 
-        void setLearningRate(float lr) { learning_rate = lr; }
+        inline void setLearningRate(float lr) { learning_rate = lr; }
+        inline void setLambda(float lmbd) { lambda = lmbd; }
 
         void train(const mnist_images &dataset, int epochs, int batch_size);
 
@@ -36,7 +39,14 @@ namespace vicetriceNN
         void saveWeights(const std::string &filename) const;
         bool loadWeights(const std::string &filename);
 
+        void saveFullModel(const std::string &filename) const;
+        bool loadFullModel(const std::string &filename);
+
         inline size_t getNumLayers() const { return layers.size(); }
         inline const neuronLayer &getLayer(size_t idx) const { return layers[idx]; }
+
+        inline float getLoss() const { return loss; }
+        inline float getLearningRate() const { return learning_rate; }
+        inline float getLambda() const { return lambda; }
     };
 }
