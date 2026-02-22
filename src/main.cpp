@@ -9,9 +9,9 @@
 
 using namespace vicetriceNN;
 
-// ------------------------------------------------------------
-// Centrado por Bounding Box
-// ------------------------------------------------------------
+
+
+
 std::vector<float> centerByBoundingBox(const std::vector<float> &img)
 {
     const int size = 28;
@@ -45,9 +45,9 @@ std::vector<float> centerByBoundingBox(const std::vector<float> &img)
     return centered;
 }
 
-// ------------------------------------------------------------
-// Guardar imagen 28x28 como BMP 8 bits
-// ------------------------------------------------------------
+
+
+
 void saveBMP28x28(const std::string &filename, const std::vector<float> &img)
 {
     const int width = 28;
@@ -106,17 +106,17 @@ void saveBMP28x28(const std::string &filename, const std::vector<float> &img)
     file.close();
 }
 
-// ------------------------------------------------------------
-// Rotar 90° CCW y flip horizontal (para EMNIST)
-// ------------------------------------------------------------
-// ------------------------------------------------------------
-// Flip horizontal y rotar 90° CCW
-// ------------------------------------------------------------
+
+
+
+
+
+
 std::vector<float> rotateFlipEMNIST(const std::vector<float> &img)
 {
     const int size = 28;
 
-    // 1️⃣ Flip horizontal (invertir columnas)
+    
     std::vector<float> flipped(size * size, 0.0f);
     for (int y = 0; y < size; y++)
     {
@@ -126,8 +126,8 @@ std::vector<float> rotateFlipEMNIST(const std::vector<float> &img)
         }
     }
 
-    // 2️⃣ Rotación según variable interna
-    int rotation = 270; // Cambia a 0, 90, 180, 270
+    
+    int rotation = 270; 
 
     std::vector<float> rotated(size * size, 0.0f);
 
@@ -137,25 +137,25 @@ std::vector<float> rotateFlipEMNIST(const std::vector<float> &img)
         {
             switch (rotation)
             {
-            case 0: // sin rotación
+            case 0: 
                 rotated[y * size + x] = flipped[y * size + x];
                 break;
-            case 90: // 90° CW
+            case 90: 
                 rotated[x * size + (size - 1 - y)] = flipped[y * size + x];
                 break;
-            case 180: // 180°
+            case 180: 
                 rotated[(size - 1 - y) * size + (size - 1 - x)] = flipped[y * size + x];
                 break;
-            case 270: // 90° CCW
+            case 270: 
                 rotated[(size - 1 - x) * size + y] = flipped[y * size + x];
                 break;
             default:
-                rotated[y * size + x] = flipped[y * size + x]; // fallback = sin rotación
+                rotated[y * size + x] = flipped[y * size + x]; 
             }
         }
     }
 
-    // 1️⃣ Flip horizontal (invertir columnas)
+    
     std::vector<float> flipped2(size * size, 0.0f);
     for (int y = 0; y < size; y++)
     {
@@ -168,9 +168,9 @@ std::vector<float> rotateFlipEMNIST(const std::vector<float> &img)
     return flipped2;
 }
 
-// ------------------------------------------------------------
-// Cargar BMP y convertir a 28x28 para EMNIST
-// ------------------------------------------------------------
+
+
+
 std::vector<float> loadBMP28x28BW_EMNIST(const std::string &filename)
 {
     std::ifstream file(filename, std::ios::binary);
@@ -229,7 +229,7 @@ std::vector<float> loadBMP28x28BW_EMNIST(const std::string &filename)
         data = gray;
     }
 
-    // Redimensionar a 28x28
+    
     std::vector<float> resized(28 * 28, 0.0f);
     float scaleX = float(width) / 28.0f, scaleY = float(height) / 28.0f;
     for (int y = 0; y < 28; y++)
@@ -240,27 +240,27 @@ std::vector<float> loadBMP28x28BW_EMNIST(const std::string &filename)
             resized[y * 28 + x] = float(data[srcY * width + srcX]) / 255.0f;
         }
 
-    // Rotar 90° CCW y flip horizontal
+    
     auto rotated = rotateFlipEMNIST(resized);
 
-    // Centrar
+    
     auto centered = centerByBoundingBox(rotated);
 
-    // Guardar imagen de debug
+    
     saveBMP28x28("debug_emnist.bmp", centered);
 
     return centered;
 }
 
-// ------------------------------------------------------------
-// MAIN
-// ------------------------------------------------------------
+
+
+
 int main()
 {
     int input_size = 28 * 28;
     int hidden1 = 256;
     int hidden2 = 128;
-    int output_size = 47; // EMNIST Balanced
+    int output_size = 47; 
 
     neuralNetwork net;
     net.addLayer(input_size, hidden1);

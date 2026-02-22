@@ -9,9 +9,9 @@
 
 using namespace vicetriceNN;
 
-// ------------------------------------------------------------
-// Centrado por Bounding Box
-// ------------------------------------------------------------
+
+
+
 std::vector<float> centerByBoundingBox(const std::vector<float> &img)
 {
     const int size = 28;
@@ -56,15 +56,15 @@ std::vector<float> centerByBoundingBox(const std::vector<float> &img)
     return centered;
 }
 
-// ------------------------------------------------------------
-// Gaussian Blur 3x3
-// ------------------------------------------------------------
+
+
+
 std::vector<float> gaussianBlur28x28(const std::vector<float> &img)
 {
     const int size = 28;
     std::vector<float> out(size * size, 0.0f);
 
-    // Kernel 3x3 aproximado sigma=1
+  
     float kernel[3][3] = {
         {1 / 16.0f, 2 / 16.0f, 1 / 16.0f},
         {2 / 16.0f, 4 / 16.0f, 2 / 16.0f},
@@ -91,9 +91,9 @@ std::vector<float> gaussianBlur28x28(const std::vector<float> &img)
     return out;
 }
 
-// ------------------------------------------------------------
-// Guardar imagen 28x28 como BMP 8 bits
-// ------------------------------------------------------------
+
+
+
 void saveBMP28x28(const std::string &filename, const std::vector<float> &img)
 {
     const int width = 28;
@@ -155,9 +155,9 @@ void saveBMP28x28(const std::string &filename, const std::vector<float> &img)
     file.close();
 }
 
-// ------------------------------------------------------------
-// Cargar BMP y convertir a 28x28 normalizado con Gaussian Blur
-// ------------------------------------------------------------
+
+
+
 std::vector<float> loadBMP28x28BW(const std::string &filename)
 {
     std::ifstream file(filename, std::ios::binary);
@@ -225,7 +225,7 @@ std::vector<float> loadBMP28x28BW(const std::string &filename)
         for (int x = 0; x < width; x++)
             flipped[y * width + x] = data[(height - 1 - y) * width + x];
 
-    // Redimensionar a 28x28
+    
     std::vector<float> resized(28 * 28, 0.0f);
     float scaleX = float(width) / 28.0f;
     float scaleY = float(height) / 28.0f;
@@ -238,21 +238,21 @@ std::vector<float> loadBMP28x28BW(const std::string &filename)
             resized[y * 28 + x] = float(flipped[srcY * width + srcX]) / 255.0f;
         }
 
-    // Aplicar Gaussian Blur
+    
     // resized = gaussianBlur28x28(resized);
 
-    // Centrar
+    
     auto centered = centerByBoundingBox(resized);
 
-    // Guardar imagen centrada para depuración
+    
     saveBMP28x28("debug_centered.bmp", centered);
 
     return centered;
 }
 
-// ------------------------------------------------------------
-// MAIN FOR MNIST
-// ------------------------------------------------------------
+
+
+
 int main()
 {
     int input_size = 28*28;
