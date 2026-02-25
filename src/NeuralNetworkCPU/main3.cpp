@@ -265,7 +265,7 @@ int main()
     net.addLayer(hidden1, hidden2);
     net.addLayer(hidden2, output_size);
 
-    if(!net.loadWeights("weights.bin"))
+    if(!net.loadWeights("weights_MNIST/weights.bin"))
     {
         std::cerr << "No se encontraron pesos entrenados.\n";
         return 1;

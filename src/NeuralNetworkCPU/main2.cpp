@@ -6,8 +6,8 @@ int main()
 {
 
     vicetriceNN::mnist_images test_dataset;
-    if (!test_dataset.load("archive/t10k-images.idx3-ubyte",
-                           "archive/t10k-labels.idx1-ubyte"))
+    if (!test_dataset.load("../archive/t10k-images.idx3-ubyte",
+                           "../archive/t10k-labels.idx1-ubyte"))
     {
         std::cerr << "Error cargando MNIST t10k (prueba)\n";
         return 1;
@@ -23,7 +23,7 @@ int main()
     net.addLayer(hidden1, hidden2);
     net.addLayer(hidden2, output_size);
 
-    if (!net.loadWeights("weights.bin"))
+    if (!net.loadWeights("weights_MNIST/weights.bin"))
     {
         std::cerr << "No se encontraron pesos guardados (weights.bin)\n";
         return 1;

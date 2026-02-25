@@ -8,8 +8,8 @@
 int main()
 {
     vicetriceNN::mnist_images dataset;
-    if (!dataset.load("archive/train-images.idx3-ubyte",
-                      "archive/train-labels.idx1-ubyte"))
+    if (!dataset.load("../archive/train-images.idx3-ubyte",
+                      "../archive/train-labels.idx1-ubyte"))
     {
         std::cerr << "Error cargando MNIST\n";
         return 1;
@@ -38,7 +38,7 @@ int main()
 
         net.train(dataset, epochs, batch_size);
 
-        net.saveWeights("weights.bin");
+        net.saveWeights("weightsCUDA.bin");
         std::cout << "Pesos guardados en weights.bin\n";
     }
     else

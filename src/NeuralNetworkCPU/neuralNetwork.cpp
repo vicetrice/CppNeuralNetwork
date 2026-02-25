@@ -41,43 +41,22 @@ namespace vicetriceNN
         int L = static_cast<int>(layers.size());
         std::vector<float> delta;
 
-        {
-            const std::vector<float> &output = layer_outputs[L];
-            delta.resize(output.size());
+        const std::vector<float> &output = layer_outputs[L];
 
-            for (size_t i = 0; i < output.size(); i++)
-                delta[i] = output[i] - target[i];
-        }
+        delta = std::move(computeDelta(output, target));
 
         for (int l = L - 1; l >= 0; l--)
         {
-            neuronLayer &layer = layers[l];
-            auto &W = layer.getWeights();
-            auto &B = layer.getBiases();
-
             const std::vector<float> &prev_output = layer_outputs[l];
 
             std::vector<float> new_delta;
 
             if (l > 0)
             {
-                new_delta.assign(prev_output.size(), 0.0f);
-
-                for (size_t i = 0; i < W.size(); i++)
-                    for (size_t j = 0; j < W[i].size(); j++)
-                        new_delta[j] += delta[i] * W[i][j];
-
-                for (size_t j = 0; j < new_delta.size(); j++)
-                    new_delta[j] *= relu_derivative(prev_output[j]);
+                new_delta = std::move(computeNewDelta(prev_output, delta, layers[l]));
             }
 
-            for (size_t i = 0; i < W.size(); i++)
-            {
-                for (size_t j = 0; j < W[i].size(); j++)
-                    W[i][j] -= learning_rate * (delta[i] * prev_output[j] + lambda * W[i][j]);
-
-                B[i] -= learning_rate * delta[i];
-            }
+            computeWeights(layers[l], delta, prev_output);
 
             if (l > 0)
                 delta = new_delta;
@@ -269,14 +248,12 @@ namespace vicetriceNN
         uint32_t magic = 0;
         file.read(reinterpret_cast<char *>(&magic), sizeof(uint32_t));
 
-        
         if (magic != 0x4E4E4655)
         {
             file.close();
-            return loadWeights(filename); 
+            return loadWeights(filename);
         }
 
-        
         file.read(reinterpret_cast<char *>(&learning_rate), sizeof(float));
         file.read(reinterpret_cast<char *>(&lambda), sizeof(float));
         file.read(reinterpret_cast<char *>(&loss), sizeof(float));
@@ -290,7 +267,6 @@ namespace vicetriceNN
             return false;
         }
 
-        
         for (auto &layer : layers)
         {
             auto &W = layer.getWeights();
@@ -311,6 +287,48 @@ namespace vicetriceNN
 
         file.close();
         return true;
+    }
+
+    std::vector<float> neuralNetwork::computeDelta(const std::vector<float> &output, const std::vector<float> &target)
+    {
+        std::vector<float> delta;
+        delta.resize(output.size());
+
+        for (size_t i = 0; i < output.size(); i++)
+            delta[i] = output[i] - target[i];
+
+        return delta;
+    }
+
+    std::vector<float> neuralNetwork::computeNewDelta(const std::vector<float> &prev_output, const std::vector<float> &old_delta, const neuronLayer &layer)
+    {
+        std::vector<float> new_delta;
+        const std::vector<std::vector<float>> &W = layer.getWeights();
+
+        new_delta.assign(prev_output.size(), 0.0f);
+
+        for (size_t i = 0; i < W.size(); i++)
+            for (size_t j = 0; j < W[i].size(); j++)
+                new_delta[j] += old_delta[i] * W[i][j];
+
+        for (size_t j = 0; j < new_delta.size(); j++)
+            new_delta[j] *= relu_derivative(prev_output[j]);
+
+        return new_delta;
+    }
+
+    void neuralNetwork::computeWeights(neuronLayer &layer, const std::vector<float> &delta, const std::vector<float> &prev_output)
+    {
+        auto &W = layer.getWeights();
+        auto &B = layer.getBiases();
+
+        for (size_t i = 0; i < W.size(); i++)
+        {
+            for (size_t j = 0; j < W[i].size(); j++)
+                W[i][j] -= learning_rate * (delta[i] * prev_output[j] + lambda * W[i][j]);
+
+            B[i] -= learning_rate * delta[i];
+        }
     }
 
 }

@@ -27,6 +27,7 @@ namespace vicetriceNN
 
     std::vector<float> neuronLayer::forward(const std::vector<float> &input) const
     {
+       
         std::vector<float> output(output_size, 0.0f);
         for (int i = 0; i < output_size; i++)
         {
@@ -38,8 +39,11 @@ namespace vicetriceNN
             output[i] += biases[i];
             output[i] = relu(output[i]);
         }
+        
+
         return output;
     }
 
- 
+   
+
 }
