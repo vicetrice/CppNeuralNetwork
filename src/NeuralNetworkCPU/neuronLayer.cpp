@@ -1,49 +1,41 @@
 #include "neuronLayer.hpp"
-#include "utils.hpp"
 #include <random>
 
 namespace vicetriceNN
 {
 
     neuronLayer::neuronLayer(int in_size, int out_size)
-        : input_size(in_size), output_size(out_size)
+        : input_size(in_size),
+          output_size(out_size),
+          weights(in_size * out_size),
+          biases(out_size, 0.0f)
     {
-        weights.resize(out_size, std::vector<float>(in_size));
-        biases.resize(out_size, 0.0f);
+        std::mt19937 rng(std::random_device{}());
+        std::normal_distribution<float> dist(0.0f, std::sqrt(2.0f / in_size));
 
-        // Random ini. Could be specific values if you know the weights beforehand. Maybe change it later?
-        std::mt19937 gen(0);
-        std::uniform_real_distribution<float> dist(-0.1f, 0.1f);
-        for (int i = 0; i < out_size; i++)
-        {
-            for (int j = 0; j < in_size; j++)
-            {
-                weights[i][j] = dist(gen);
-            }
-        }
+        for (auto &w : weights)
+            w = dist(rng);
     }
-
-    neuronLayer::~neuronLayer() = default;
 
     std::vector<float> neuronLayer::forward(const std::vector<float> &input) const
     {
-       
-        std::vector<float> output(output_size, 0.0f);
-        for (int i = 0; i < output_size; i++)
+        std::vector<float> output(output_size);
+
+        for (int o = 0; o < output_size; ++o)
         {
-            for (int j = 0; j < input_size; j++)
+            float sum = biases[o];
+
+            const int row_offset = o * input_size;
+
+            for (int i = 0; i < input_size; ++i)
             {
-                output[i] += weights[i][j] * input[j];
+                sum += weights[row_offset + i] * input[i];
             }
 
-            output[i] += biases[i];
-            output[i] = relu(output[i]);
+            output[o] = relu(sum);
         }
-        
 
         return output;
     }
-
-   
 
 }

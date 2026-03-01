@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <random>
 #include "utils.hpp"
+#include <numeric>
 
 namespace vicetriceNN
 {
@@ -12,54 +13,44 @@ namespace vicetriceNN
         layers.emplace_back(input_size, output_size);
     }
 
-    std::vector<float> neuralNetwork::forward(
-        const std::vector<float> &input,
-        std::vector<std::vector<float>> &layer_outputs) const
+    std::vector<float> neuralNetwork::forward(const std::vector<float> &input, std::vector<std::vector<float>> &layer_outputs) const
     {
-        layer_outputs.clear();
-        layer_outputs.push_back(input);
+        layer_outputs[0] = input;
+        std::vector<float> current(input.size());
+        std::copy(input.begin(), input.end(), current.begin());
 
-        std::vector<float> current = input;
-
-        for (size_t l = 0; l < layers.size(); l++)
+        for (size_t l = 0; l < layers.size(); ++l)
         {
             current = layers[l].forward(current);
-
             if (l == layers.size() - 1)
-                current = softmax(current);
-
-            layer_outputs.push_back(current);
+                softmax(current);
+            layer_outputs[l + 1] = current;
         }
 
         return current;
     }
 
-    void neuralNetwork::backward(
-        const std::vector<float> &target,
-        const std::vector<std::vector<float>> &layer_outputs)
+    void neuralNetwork::backward(const std::vector<float> &target, const std::vector<std::vector<float>> &layer_outputs)
     {
         int L = static_cast<int>(layers.size());
-        std::vector<float> delta;
+        std::vector<float> delta(target.size());
 
-        const std::vector<float> &output = layer_outputs[L];
+        computeDelta(layer_outputs[L], target, delta);
 
-        delta = std::move(computeDelta(output, target));
-
-        for (int l = L - 1; l >= 0; l--)
+        for (int l = L - 1; l >= 0; --l)
         {
             const std::vector<float> &prev_output = layer_outputs[l];
-
-            std::vector<float> new_delta;
-
             if (l > 0)
             {
-                new_delta = std::move(computeNewDelta(prev_output, delta, layers[l]));
+                std::vector<float> new_delta(prev_output.size(), 0.f);
+                computeNewDelta(prev_output, delta, layers[l], new_delta);
+                computeWeights(layers[l], delta, prev_output);
+                delta = std::move(new_delta);
             }
-
-            computeWeights(layers[l], delta, prev_output);
-
-            if (l > 0)
-                delta = new_delta;
+            else
+            {
+                computeWeights(layers[l], delta, prev_output);
+            }
         }
     }
 
@@ -71,7 +62,9 @@ namespace vicetriceNN
 
     std::vector<float> neuralNetwork::predict(const std::vector<float> &input) const
     {
-        std::vector<std::vector<float>> dummy;
+        std::vector<std::vector<float>> dummy(layers.size() + 1);
+        for (size_t l = 0; l < dummy.size(); ++l)
+            dummy[l].resize((l == 0 ? layers[0].getInputSize() : layers[l - 1].getOutputSize()));
         return forward(input, dummy);
     }
 
@@ -79,41 +72,41 @@ namespace vicetriceNN
     {
         size_t num_samples = dataset.size();
         std::vector<size_t> indices(num_samples);
-        for (size_t i = 0; i < num_samples; i++)
-            indices[i] = i;
-
+        std::iota(indices.begin(), indices.end(), 0);
         std::mt19937 rng(0);
+        std::vector<std::vector<float>> layer_outputs(layers.size() + 1);
+        std::vector<float> target(layers.back().getOutputSize(), 0.f);
+        std::vector<float> output(layers.back().getOutputSize(), 0.f);
 
-        for (int e = 0; e < epochs; e++)
+        layer_outputs[0].resize(layers[0].getInputSize());
+        for (size_t l = 0; l < layers.size(); ++l)
+            layer_outputs[l + 1].resize(layers[l].getOutputSize());
+
+        for (int e = 0; e < epochs; ++e)
         {
             std::shuffle(indices.begin(), indices.end(), rng);
-            float epoch_loss = 0.0f;
+            float epoch_loss = 0.f;
 
             for (size_t start = 0; start < num_samples; start += batch_size)
             {
                 size_t end = std::min(start + batch_size, num_samples);
-                for (size_t idx = start; idx < end; idx++)
+                for (size_t idx = start; idx < end; ++idx)
                 {
                     size_t i = indices[idx];
-                    const auto &img = dataset.getImage(i);
-
-                    std::vector<float> input_vec(img.size());
-                    for (size_t p = 0; p < img.size(); p++)
-                        input_vec[p] = img[p].r / 255.0f;
-
                     int label = dataset.getLabel(i);
 
-                    std::vector<std::vector<float>> layer_outputs;
-                    auto output = forward(input_vec, layer_outputs);
+                    std::copy(dataset.getImage(i).begin(), dataset.getImage(i).end(), layer_outputs[0].begin());
 
+                    output = forward(layer_outputs[0], layer_outputs);
                     epoch_loss += cross_entropy_loss(output, label);
 
-                    std::vector<float> target(output.size(), 0.0f);
-                    target[label] = 1.0f;
+                    std::fill(target.begin(), target.end(), 0.f);
+                    target[label] = 1.f;
 
                     backward(target, layer_outputs);
                 }
             }
+
             loss = epoch_loss / num_samples;
             std::cout << "Epoch " << e + 1 << "/" << epochs << ", Loss: " << loss << "\n";
         }
@@ -124,18 +117,24 @@ namespace vicetriceNN
         size_t correct = 0;
         size_t num_samples = dataset.size();
 
-        for (size_t i = 0; i < num_samples; i++)
-        {
-            const auto &img = dataset.getImage(i);
-            std::vector<float> input_vec(img.size());
-            for (size_t p = 0; p < img.size(); p++)
-                input_vec[p] = img[p].r / 255.0f;
+        std::vector<std::vector<float>> layer_outputs(layers.size() + 1);
+        layer_outputs[0].resize(layers[0].getInputSize(), 0.f);
+        for (size_t l = 0; l < layers.size(); ++l)
+            layer_outputs[l + 1].resize(layers[l].getOutputSize(), 0.f);
 
-            auto output = predict(input_vec);
+        std::vector<float> output(layers.back().getOutputSize(), 0.f);
+
+        for (size_t i = 0; i < num_samples; ++i)
+        {
+
+            const std::vector<float> &img = dataset.getImage(i);
+            std::copy(img.begin(), img.end(), layer_outputs[0].begin());
+
+            output = forward(layer_outputs[0], layer_outputs);
 
             size_t predicted = 0;
             float max_val = output[0];
-            for (size_t j = 1; j < output.size(); j++)
+            for (size_t j = 1; j < output.size(); ++j)
             {
                 if (output[j] > max_val)
                 {
@@ -151,170 +150,10 @@ namespace vicetriceNN
         return float(correct) / num_samples;
     }
 
-    void neuralNetwork::saveFullModel(const std::string &filename) const
+    void neuralNetwork::computeDelta(const std::vector<float> &output, const std::vector<float> &target, std::vector<float> &delta)
     {
-        std::ofstream file(filename, std::ios::binary);
-        if (!file.is_open())
-            return;
-
-        const uint32_t magic = 0x4E4E4655;
-        file.write(reinterpret_cast<const char *>(&magic), sizeof(uint32_t));
-
-        file.write(reinterpret_cast<const char *>(&learning_rate), sizeof(float));
-        file.write(reinterpret_cast<const char *>(&lambda), sizeof(float));
-        file.write(reinterpret_cast<const char *>(&loss), sizeof(float));
-
-        size_t num_layers = layers.size();
-        file.write(reinterpret_cast<const char *>(&num_layers), sizeof(size_t));
-
-        for (const auto &layer : layers)
-        {
-            const auto &W = layer.getWeights();
-            const auto &B = layer.getBiases();
-
-            size_t rows = W.size();
-            size_t cols = W[0].size();
-
-            file.write(reinterpret_cast<const char *>(&rows), sizeof(size_t));
-            file.write(reinterpret_cast<const char *>(&cols), sizeof(size_t));
-
-            for (size_t i = 0; i < rows; i++)
-                file.write(reinterpret_cast<const char *>(W[i].data()), cols * sizeof(float));
-
-            file.write(reinterpret_cast<const char *>(B.data()), B.size() * sizeof(float));
-        }
-
-        file.close();
-    }
-
-    void neuralNetwork::saveWeights(const std::string &filename) const
-    {
-        std::ofstream file(filename, std::ios::binary);
-        if (!file.is_open())
-            return;
-
-        for (const auto &layer : layers)
-        {
-            const auto &W = layer.getWeights();
-            const auto &B = layer.getBiases();
-
-            size_t rows = W.size();
-            size_t cols = W[0].size();
-
-            file.write(reinterpret_cast<const char *>(&rows), sizeof(size_t));
-            file.write(reinterpret_cast<const char *>(&cols), sizeof(size_t));
-
-            for (size_t i = 0; i < rows; i++)
-                file.write(reinterpret_cast<const char *>(W[i].data()), cols * sizeof(float));
-
-            file.write(reinterpret_cast<const char *>(B.data()), B.size() * sizeof(float));
-        }
-        file.close();
-    }
-
-    bool neuralNetwork::loadWeights(const std::string &filename)
-    {
-        std::ifstream file(filename, std::ios::binary);
-        if (!file.is_open())
-            return false;
-
-        for (auto &layer : layers)
-        {
-            auto &W = layer.getWeights();
-            auto &B = layer.getBiases();
-
-            size_t rows, cols;
-            file.read(reinterpret_cast<char *>(&rows), sizeof(size_t));
-            file.read(reinterpret_cast<char *>(&cols), sizeof(size_t));
-
-            W.resize(rows, std::vector<float>(cols));
-            B.resize(rows);
-
-            for (size_t i = 0; i < rows; i++)
-                file.read(reinterpret_cast<char *>(W[i].data()), cols * sizeof(float));
-
-            file.read(reinterpret_cast<char *>(B.data()), B.size() * sizeof(float));
-        }
-        file.close();
-        return true;
-    }
-
-    bool neuralNetwork::loadFullModel(const std::string &filename)
-    {
-        std::ifstream file(filename, std::ios::binary);
-        if (!file.is_open())
-            return false;
-
-        uint32_t magic = 0;
-        file.read(reinterpret_cast<char *>(&magic), sizeof(uint32_t));
-
-        if (magic != 0x4E4E4655)
-        {
-            file.close();
-            return loadWeights(filename);
-        }
-
-        file.read(reinterpret_cast<char *>(&learning_rate), sizeof(float));
-        file.read(reinterpret_cast<char *>(&lambda), sizeof(float));
-        file.read(reinterpret_cast<char *>(&loss), sizeof(float));
-
-        size_t num_layers = 0;
-        file.read(reinterpret_cast<char *>(&num_layers), sizeof(size_t));
-
-        if (num_layers != layers.size())
-        {
-            file.close();
-            return false;
-        }
-
-        for (auto &layer : layers)
-        {
-            auto &W = layer.getWeights();
-            auto &B = layer.getBiases();
-
-            size_t rows, cols;
-            file.read(reinterpret_cast<char *>(&rows), sizeof(size_t));
-            file.read(reinterpret_cast<char *>(&cols), sizeof(size_t));
-
-            W.resize(rows, std::vector<float>(cols));
-            B.resize(rows);
-
-            for (size_t i = 0; i < rows; i++)
-                file.read(reinterpret_cast<char *>(W[i].data()), cols * sizeof(float));
-
-            file.read(reinterpret_cast<char *>(B.data()), B.size() * sizeof(float));
-        }
-
-        file.close();
-        return true;
-    }
-
-    std::vector<float> neuralNetwork::computeDelta(const std::vector<float> &output, const std::vector<float> &target)
-    {
-        std::vector<float> delta;
-        delta.resize(output.size());
-
-        for (size_t i = 0; i < output.size(); i++)
+        for (size_t i = 0; i < output.size(); ++i)
             delta[i] = output[i] - target[i];
-
-        return delta;
-    }
-
-    std::vector<float> neuralNetwork::computeNewDelta(const std::vector<float> &prev_output, const std::vector<float> &old_delta, const neuronLayer &layer)
-    {
-        std::vector<float> new_delta;
-        const std::vector<std::vector<float>> &W = layer.getWeights();
-
-        new_delta.assign(prev_output.size(), 0.0f);
-
-        for (size_t i = 0; i < W.size(); i++)
-            for (size_t j = 0; j < W[i].size(); j++)
-                new_delta[j] += old_delta[i] * W[i][j];
-
-        for (size_t j = 0; j < new_delta.size(); j++)
-            new_delta[j] *= relu_derivative(prev_output[j]);
-
-        return new_delta;
     }
 
     void neuralNetwork::computeWeights(neuronLayer &layer, const std::vector<float> &delta, const std::vector<float> &prev_output)
@@ -322,13 +161,32 @@ namespace vicetriceNN
         auto &W = layer.getWeights();
         auto &B = layer.getBiases();
 
-        for (size_t i = 0; i < W.size(); i++)
-        {
-            for (size_t j = 0; j < W[i].size(); j++)
-                W[i][j] -= learning_rate * (delta[i] * prev_output[j] + lambda * W[i][j]);
+        int in = layer.getInputSize();
+        int out = layer.getOutputSize();
 
-            B[i] -= learning_rate * delta[i];
+        for (int o = 0; o < out; ++o)
+        {
+            int offset = o * in;
+            for (int i = 0; i < in; ++i)
+            {
+                W[offset + i] -= learning_rate * (delta[o] * prev_output[i] + lambda * W[offset + i]);
+            }
+            B[o] -= learning_rate * delta[o];
         }
     }
 
+    void neuralNetwork::computeNewDelta(const std::vector<float> &prev_output, const std::vector<float> &old_delta, const neuronLayer &layer, std::vector<float> &new_delta)
+    {
+        std::fill(new_delta.begin(), new_delta.end(), 0.f);
+        int in = layer.getInputSize(), out = layer.getOutputSize();
+        const auto &W = layer.getWeights();
+        for (int o = 0; o < out; ++o)
+        {
+            int offset = o * in;
+            for (int i = 0; i < in; ++i)
+                new_delta[i] += old_delta[o] * W[offset + i];
+        }
+        for (size_t i = 0; i < new_delta.size(); ++i)
+            new_delta[i] *= relu_derivative(prev_output[i]);
+    }
 }

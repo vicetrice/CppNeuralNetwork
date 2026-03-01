@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall -Werror -Wextra -std=c++17
+CXXFLAGS = -Wall -Werror -Wextra -std=c++17 -O3
 
 SRCS = main.cpp neuralNetwork.cpp neuronLayer.cpp mnist_images.cpp utils.cpp
 OBJS = $(SRCS:.cpp=.o)

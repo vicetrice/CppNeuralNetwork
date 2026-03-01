@@ -16,5 +16,5 @@ namespace vicetriceNN
     {
         return x > 0.0f ? 1.0f : 0.0f;
     }
-    std::vector<float> softmax(const std::vector<float> &x);
+    void softmax( std::vector<float> &x);
 }

@@ -13,7 +13,7 @@ namespace vicetriceNN
     class mnist_images
     {
     private:
-        std::vector<std::vector<Pixel>> images;
+        std::vector<std::vector<float>> images;
         std::vector<unsigned char> labels;
         int rows = 0, cols = 0;
 
@@ -41,9 +41,12 @@ namespace vicetriceNN
         inline int getCols() const { return cols; }
         inline size_t size() const { return images.size(); }
 
-        const inline std::vector<Pixel> &getImage(size_t idx) const { return images[idx]; }
+        const inline std::vector<float> &getImage(size_t idx) const { return images[idx]; }
         unsigned char inline getLabel(size_t idx) const { return labels[idx]; }
 
         bool saveBMP(const std::string &filename, size_t idx) const;
+
+        
+
     };
 }

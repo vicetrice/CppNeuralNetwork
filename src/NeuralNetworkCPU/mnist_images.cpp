@@ -29,7 +29,7 @@ namespace vicetriceNN
         rows = swapEndian(n_rows);
         cols = swapEndian(n_cols);
 
-        images.resize(n_images, std::vector<Pixel>(rows * cols));
+        images.resize(n_images, std::vector<float>(rows * cols));
 
         for (uint32_t i = 0; i < n_images; ++i)
         {
@@ -37,7 +37,7 @@ namespace vicetriceNN
             {
                 unsigned char p = 0;
                 file.read(reinterpret_cast<char *>(&p), 1);
-                images[i][j] = {p, p, p};
+                images[i][j] = p/255.0f; //normalizado
             }
         }
         file.close();
@@ -121,10 +121,10 @@ namespace vicetriceNN
         {
             for (int x = 0; x < cols; x++)
             {
-                const Pixel &p = images[idx][y * cols + x];
-                row[x * 3 + 0] = p.b;
-                row[x * 3 + 1] = p.g;
-                row[x * 3 + 2] = p.r;
+                const float &p = images[idx][y * cols + x];
+                row[x * 3 + 0] = p*255.0f;
+                row[x * 3 + 1] = p*255.0f;
+                row[x * 3 + 2] = p*255.0f;
             }
             file.write(reinterpret_cast<char *>(row.data()), row_padded);
         }

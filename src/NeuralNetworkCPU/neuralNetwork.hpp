@@ -15,8 +15,8 @@ namespace vicetriceNN
         float loss;
 
         static float cross_entropy_loss(const std::vector<float> &output, int label);
-        std::vector<float> computeDelta(const std::vector<float> &output, const std::vector<float> &target);
-        std::vector<float> computeNewDelta(const std::vector<float> &prev_output, const std::vector<float> &old_delta, const neuronLayer &layer);
+        void computeDelta(const std::vector<float> &output, const std::vector<float> &target, std::vector<float> &delta);
+        void computeNewDelta(const std::vector<float> &prev_output, const std::vector<float> &old_delta, const neuronLayer &layer, std::vector<float> &new_delta);
         void computeWeights(neuronLayer &layer, const std::vector<float> &delta, const std::vector<float> &prev_output);
 
     public:
